@@ -2,6 +2,7 @@
 import type { StateCreator } from 'zustand';
 import type { CoreGameActions } from '../../types/storeInterfaces';
 import type { GameState } from '../../types/game';
+import type { ComposedGameStore } from '../composedStore';
 import { clearAuthToken } from '../../api/authStorage';
 import {
   ensureGuestSession,
@@ -148,24 +149,23 @@ const makeStarterPayload = (): Record<string, unknown> => ({
   totalRestarts: 0,
 });
 
-const persistableState = (state: GameState): PersistedBackendState => {
+const persistableState = (state: ComposedGameStore): PersistedBackendState => {
   const payload: PersistedBackendState = { ...state };
   payload.selectedDaemons = Array.from(state.selectedDaemons);
-  payload.userId = state.userId;
   payload.currentTab = state.currentTab;
   payload.showTutorial = state.showTutorial;
   payload.showMemorial = state.showMemorial;
   payload.showMissionModal = state.showMissionModal;
   payload.showMissionResults = state.showMissionResults;
   payload.showEventModal = state.showEventModal;
-  payload.missionResults = state.missionResults;
+  payload.missionResults = state.missionResult;
   payload.currentEvent = state.currentEvent;
   return payload;
 };
 
 export type CoreSlice = CoreGameActions;
 
-export const createCoreSlice: StateCreator<import('../composedStore').ComposedGameStore, [], [], CoreSlice> =
+export const createCoreSlice: StateCreator<ComposedGameStore, [], [], CoreSlice> =
   (set, get) => {
     let isBootstrapping = false;
     let didBootstrap = false;
@@ -198,13 +198,16 @@ export const createCoreSlice: StateCreator<import('../composedStore').ComposedGa
       const merged = {
         ...current,
         ...parsed,
-      } as GameState;
+      };
       merged.selectedDaemons = normalizeSelectedDaemons(parsed.selectedDaemons);
+      if ('missionResults' in parsed && !('missionResult' in parsed)) {
+        merged.missionResult = parsed.missionResults as ComposedGameStore['missionResult'];
+      }
 
       set(() => ({
         ...merged,
         selectedDaemons: merged.selectedDaemons,
-      }));
+      } as Partial<ComposedGameStore>));
 
       return true;
     };
