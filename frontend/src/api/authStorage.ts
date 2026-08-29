@@ -1,4 +1,5 @@
 const AUTH_STORAGE_KEY = 'auth-storage';
+const GUEST_AUTH_STORAGE_KEY = 'daemon-directorate-guest-session';
 
 export interface PersistedAuthState {
   [key: string]: unknown;
@@ -97,19 +98,9 @@ export const setAuthLoginUrl = (loginUrl: string): void => {
 };
 
 export const clearAuthToken = (): void => {
-  const storage = readAuthStorage();
-  const state = isRecord(storage.state) ? storage.state : {};
-
-  const nextState: PersistedAuthState = {
-    ...storage,
-    state: {
-      ...state,
-      token: undefined,
-      user: undefined,
-    },
-  };
-
-  writeAuthStorage(nextState);
+  if (typeof localStorage !== 'undefined') {
+    localStorage.removeItem(GUEST_AUTH_STORAGE_KEY);
+  }
 };
 
 export const hasAuthToken = (): boolean => {

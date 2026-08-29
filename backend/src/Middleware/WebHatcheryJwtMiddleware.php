@@ -7,8 +7,6 @@ namespace App\Middleware;
 use App\Core\Environment;
 use App\Core\Request;
 use App\Core\Response;
-use Firebase\JWT\JWT;
-use Firebase\JWT\Key;
 use RuntimeException;
 
 final class WebHatcheryJwtMiddleware
@@ -22,7 +20,7 @@ final class WebHatcheryJwtMiddleware
 
         try {
             $secret = Environment::required('JWT_SECRET');
-            $decoded = JWT::decode($matches[1], new Key($secret, 'HS256'));
+            $decoded = (new \WebHatchery\Auth\JwtAuthenticator($secret))->decode($matches[1]);
             $userId = $decoded->sub ?? $decoded->user_id ?? null;
             if ($userId === null) {
                 throw new RuntimeException('Token missing user identifier');
@@ -50,6 +48,7 @@ final class WebHatcheryJwtMiddleware
     {
         $response->withStatus(401)->json([
             'success' => false,
+            'error_code' => 'unauthorized',
             'error' => 'Authentication required',
             'message' => 'Authentication required',
             'login_url' => Environment::required('WEB_HATCHERY_LOGIN_URL'),
@@ -58,3 +57,5 @@ final class WebHatcheryJwtMiddleware
         return $response;
     }
 }
+
+

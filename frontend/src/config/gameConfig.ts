@@ -50,6 +50,14 @@ interface GameConfig {
 }
 
 // Default configuration
+const requiredEnv = (value: string | undefined, name: string): string => {
+  if (!value || value.trim() === '') {
+    throw new Error(`${name} must be configured.`);
+  }
+
+  return value.trim();
+};
+
 const defaultConfig: GameConfig = {
   performance: {
     maxFrameRate: 60,
@@ -87,7 +95,7 @@ const defaultConfig: GameConfig = {
   },
 
   environment: {
-    apiBaseUrl: import.meta.env.VITE_API_BASE_URL || '',
+    apiBaseUrl: requiredEnv(import.meta.env.VITE_API_BASE_URL, 'VITE_API_BASE_URL'),
     enableAnalytics: import.meta.env.PROD,
     enableErrorReporting: import.meta.env.PROD,
     buildVersion: import.meta.env.VITE_BUILD_VERSION || '1.0.0',

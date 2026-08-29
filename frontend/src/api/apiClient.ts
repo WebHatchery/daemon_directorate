@@ -1,62 +1,104 @@
-import axios from 'axios';
-import { getAuthState, setAuthLoginUrl } from './authStorage';
+import {
+  ApiError,
+  createApiClient,
+  resolveApiRootUrl,
+  type QueryParams,
+  type TokenProvider,
+} from '@webhatchery/api-client';
 
-// Determine the base URL from the environment or use a relative path
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
+const GAME_SLUG = 'daemon_directorate';
 
-/**
- * Standardized Web Hatchery Axios Instance
- * Automatically handles Bearer tokens and 401 Unauthorized redirects.
- */
-export const apiClient = axios.create({
-    baseURL: BASE_URL,
-    headers: {
-        'Content-Type': 'application/json',
-    },
+function requiredEnv(value: string | undefined, name: string, allowEmpty = false): string {
+  if (!allowEmpty && (!value || value.trim() === '')) {
+    throw new Error(`${name} must be configured.`);
+  }
+
+  return value?.trim() ?? '';
+}
+
+const sharedApiClient = createApiClient({
+  baseURL: resolveApiRootUrl(
+    requiredEnv(import.meta.env.VITE_API_BASE_URL, 'VITE_API_BASE_URL'),
+    requiredEnv(import.meta.env.VITE_API_VERSION, 'VITE_API_VERSION', true),
+  ),
+  guestAuthStorageKey: `${GAME_SLUG}-guest-session`,
+  preserveEnvelope: true,
+  onUnauthorized: (error) => {
+    if (error instanceof ApiError && error.loginUrl) {
+      window.dispatchEvent(
+        new CustomEvent<{ loginUrl: string }>('webhatchery:login-required', {
+          detail: { loginUrl: error.loginUrl },
+        }),
+      );
+    }
+  },
 });
 
-// Request Interceptor: Attach Auth Token
-apiClient.interceptors.request.use(
-    (config) => {
-        try {
-            const { token } = getAuthState();
-            if (token) {
-                config.headers.Authorization = `Bearer ${token}`;
-            }
-        } catch (error) {
-            console.warn('Failed to parse auth token from local storage', error);
-        }
+export function setWebHatcheryTokenProvider(provider: TokenProvider | null): void {
+  sharedApiClient.setTokenProvider(provider);
+}
 
-        return config;
-    },
-    (error) => {
-        return Promise.reject(error);
-    }
-);
+export interface ApiResponse<T> {
+  data: T;
+  status: number;
+}
 
-// Response Interceptor: Handle 401s and standardize errors
-apiClient.interceptors.response.use(
-    (response) => {
-        return response;
-    },
-    (error) => {
-        // Intercept 401 Unauthorized and redirect to central login
-        if (error.response?.status === 401) {
-            const loginUrl =
-                error.response?.data?.login_url ||
-                import.meta.env.VITE_WEB_HATCHERY_LOGIN_URL;
+interface RequestConfig {
+  params?: Record<string, unknown>;
+  headers?: unknown;
+  data?: unknown;
+  method?: string;
+  url?: string;
+  [key: string]: unknown;
+}
 
-            if (loginUrl) {
-                try {
-                    setAuthLoginUrl(loginUrl);
-                    window.dispatchEvent(
-                        new CustomEvent('webhatchery:login-required', { detail: { loginUrl } })
-                    );
-                } catch (storageError) {
-                    console.warn('Failed to persist login URL to auth storage', storageError);
-                }
-            }
-        }
-        return Promise.reject(error);
-    }
-);
+function normalizeEndpoint(endpoint: string): string {
+  if (/^https?:\/\//i.test(endpoint)) {
+    return endpoint;
+  }
+
+  return endpoint.replace(/^\/api(?:\/v1)?(?=\/|$)/, '') || '/';
+}
+
+function normalizeHeaders(value: unknown): HeadersInit | undefined {
+  if (!value || typeof value !== 'object') {
+    return undefined;
+  }
+
+  return value as HeadersInit;
+}
+
+async function request<T>(config: RequestConfig): Promise<ApiResponse<T>> {
+  const endpoint = normalizeEndpoint(String(config.url ?? '/'));
+  const method = String(config.method ?? 'GET').toUpperCase();
+  const data = await sharedApiClient.request<T>(endpoint, {
+    method,
+    body: config.data,
+    headers: normalizeHeaders(config.headers),
+    query: config.params as QueryParams | undefined,
+  });
+
+  return { data, status: 200 };
+}
+
+export const apiClient = {
+  request,
+  get<T>(endpoint: string, config: RequestConfig = {}): Promise<ApiResponse<T>> {
+    return request<T>({ ...config, url: endpoint, method: 'GET' });
+  },
+  post<T, TBody = unknown>(endpoint: string, data?: TBody, config: RequestConfig = {}): Promise<ApiResponse<T>> {
+    return request<T>({ ...config, url: endpoint, method: 'POST', data });
+  },
+  put<T, TBody = unknown>(endpoint: string, data?: TBody, config: RequestConfig = {}): Promise<ApiResponse<T>> {
+    return request<T>({ ...config, url: endpoint, method: 'PUT', data });
+  },
+  patch<T, TBody = unknown>(endpoint: string, data?: TBody, config: RequestConfig = {}): Promise<ApiResponse<T>> {
+    return request<T>({ ...config, url: endpoint, method: 'PATCH', data });
+  },
+  delete<T>(endpoint: string, config: RequestConfig = {}): Promise<ApiResponse<T>> {
+    return request<T>({ ...config, url: endpoint, method: 'DELETE' });
+  },
+};
+
+export const axiosClient = apiClient;
+export default apiClient;

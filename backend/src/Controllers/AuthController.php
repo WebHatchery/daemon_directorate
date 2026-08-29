@@ -59,6 +59,13 @@ final class AuthController
         ]);
     }
 
+    public function session(Request $request, Response $response): void
+    {
+        $response->success([
+            'user' => AuthUser::fromArray($request->getAttribute('auth_user', []))->toArray(),
+        ]);
+    }
+
     public function linkGuest(Request $request, Response $response): void
     {
         $response->success($this->linkGuestAccountAction->execute(

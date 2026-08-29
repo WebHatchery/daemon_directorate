@@ -1,24 +1,24 @@
-import type { AxiosResponse } from 'axios';
-
 import { apiClient } from './apiClient';
 import { ApiResponse } from './types';
-import { clearAuthToken, getAuthState, hasAuthToken, setAuthStorage } from './authStorage';
+import { clearStorageValue, readFrontpageToken, readGuestSession, saveGuestSession } from '@webhatchery/auth-react';
+
+const GUEST_AUTH_STORAGE_KEY = 'daemon-directorate-guest-session';
 
 export const getStoredAuthToken = (): string | null => {
-  return getAuthState().token;
+  return readFrontpageToken() ?? readGuestSession<BackendUser>(GUEST_AUTH_STORAGE_KEY)?.token ?? null;
 };
 
 export const ensureGuestSession = async (force = false): Promise<void> => {
-  if (!force && hasAuthToken()) {
+  if (!force && getStoredAuthToken()) {
     return;
   }
 
   if (force) {
-    clearAuthToken();
+    clearStorageValue(GUEST_AUTH_STORAGE_KEY);
   }
 
   const guestSession = await createGuestSession();
-  setAuthStorage(guestSession.token, guestSession.user);
+  saveGuestSession(GUEST_AUTH_STORAGE_KEY, guestSession);
 };
 
 export interface BackendUser {
@@ -52,8 +52,7 @@ export interface BackendLinkGuestPayload {
 }
 
 export const getLoginInfo = async (): Promise<{ login_url: string }> => {
-  const response: AxiosResponse<ApiResponse<{ login_url: string }>> =
-    await apiClient.get('/api/auth/login-info');
+  const response = await apiClient.get<ApiResponse<{ login_url: string }>>('/api/auth/login-info');
 
   if (!response.data.success || !response.data.data) {
     throw new Error(response.data.error || 'Unable to load login information.');
@@ -63,8 +62,7 @@ export const getLoginInfo = async (): Promise<{ login_url: string }> => {
 };
 
 export const createGuestSession = async (): Promise<BackendGuestSessionPayload> => {
-  const response: AxiosResponse<ApiResponse<BackendGuestSessionPayload>> =
-    await apiClient.post('/api/auth/guest-session', {});
+  const response = await apiClient.post<ApiResponse<BackendGuestSessionPayload>>('/api/auth/guest-session', {});
 
   if (!response.data.success || !response.data.data) {
     throw new Error(response.data.error || 'Unable to create guest session.');
@@ -74,8 +72,7 @@ export const createGuestSession = async (): Promise<BackendGuestSessionPayload> 
 };
 
 export const linkGuestSession = async (guestToken: string): Promise<BackendLinkGuestPayload> => {
-  const response: AxiosResponse<ApiResponse<BackendLinkGuestPayload>> =
-    await apiClient.post('/api/auth/link-guest', { guest_token: guestToken });
+  const response = await apiClient.post<ApiResponse<BackendLinkGuestPayload>>('/api/auth/link-guest', { guest_token: guestToken });
 
   if (!response.data.success || !response.data.data) {
     throw new Error(response.data.error || 'Unable to link guest session.');
@@ -85,7 +82,7 @@ export const linkGuestSession = async (guestToken: string): Promise<BackendLinkG
 };
 
 export const loadGameState = async (): Promise<BackendGamePayload> => {
-  const response: AxiosResponse<ApiResponse<BackendLoadPayload>> = await apiClient.get('/api/game');
+  const response = await apiClient.get<ApiResponse<BackendLoadPayload>>('/api/game');
 
   if (!response.data.success || !response.data.data) {
     throw new Error(response.data.error || 'Unable to load game state.');
@@ -97,8 +94,7 @@ export const loadGameState = async (): Promise<BackendGamePayload> => {
 export const startNewGame = async (
   payload: BackendGamePayload = {}
 ): Promise<BackendGamePayload> => {
-  const response: AxiosResponse<ApiResponse<BackendLoadPayload>> =
-    await apiClient.post('/api/game/start', { state: payload });
+  const response = await apiClient.post<ApiResponse<BackendLoadPayload>>('/api/game/start', { state: payload });
 
   if (!response.data.success || !response.data.data) {
     throw new Error(response.data.error || 'Unable to start game.');
@@ -108,8 +104,7 @@ export const startNewGame = async (
 };
 
 export const persistGameState = async (gameState: BackendGamePayload): Promise<BackendGamePayload> => {
-  const response: AxiosResponse<ApiResponse<BackendLoadPayload>> =
-    await apiClient.post('/api/game/save', { game_state: gameState });
+  const response = await apiClient.post<ApiResponse<BackendLoadPayload>>('/api/game/save', { game_state: gameState });
 
   if (!response.data.success || !response.data.data) {
     throw new Error(response.data.error || 'Unable to save game state.');
@@ -122,8 +117,7 @@ export const applyGameAction = async (
   actionType: string,
   payload: BackendGamePayload
 ): Promise<BackendGamePayload> => {
-  const response: AxiosResponse<ApiResponse<BackendLoadPayload>> =
-    await apiClient.post(`/api/game/action/${actionType}`, payload);
+  const response = await apiClient.post<ApiResponse<BackendLoadPayload>>(`/api/game/action/${actionType}`, payload);
 
   if (!response.data.success || !response.data.data) {
     throw new Error(response.data.error || 'Unable to apply game action.');

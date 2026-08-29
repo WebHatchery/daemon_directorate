@@ -7,8 +7,6 @@ namespace App\Actions;
 use App\Core\Environment;
 use App\Models\AuthUser;
 use App\Repositories\GameRepository;
-use Firebase\JWT\JWT;
-use Firebase\JWT\Key;
 use RuntimeException;
 
 final class LinkGuestAccountAction
@@ -29,7 +27,7 @@ final class LinkGuestAccountAction
         }
 
         try {
-            $decoded = JWT::decode($guestToken, new Key(Environment::required('JWT_SECRET'), 'HS256'));
+            $decoded = (new \WebHatchery\Auth\JwtAuthenticator(Environment::required('JWT_SECRET')))->decode($guestToken);
         } catch (\Throwable) {
             throw new RuntimeException('Invalid guest token.');
         }
@@ -48,3 +46,5 @@ final class LinkGuestAccountAction
         ];
     }
 }
+
+

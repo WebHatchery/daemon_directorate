@@ -1,6 +1,11 @@
 <?php
 
 declare(strict_types=1);
+$centralAutoloader = __DIR__ . '/../../../../vendor/autoload.php';
+if (file_exists($centralAutoloader)) {
+    require_once $centralAutoloader;
+}
+
 
 $autoloader = null;
 $searchPaths = [
@@ -78,3 +83,5 @@ if ($appBasePath !== '') {
 
 (require __DIR__ . '/../src/Routes/router.php')($router);
 $router->handle();
+
+
